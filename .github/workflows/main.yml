@@ -1,43 +1,36 @@
-name: BALLONTV_DUAL_STREAM
+name: BALLONTV_STREAMS_PRO
 
 on:
-  workflow_dispatch: # تشغيل يدوي بضغطة زر
+  workflow_dispatch: # تشغيل يدوي
 
 jobs:
-  stream:
+  # المهمة الأولى: بث قناة القرآن الكريم
+  Quran-Stream:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Tools
+      - name: Install FFmpeg
+        run: sudo apt update && sudo apt install -y ffmpeg
+
+      - name: Live Quran
         run: |
-          sudo apt update && sudo apt install -y ffmpeg
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-          sudo chmod a+rx /usr/local/bin/yt-dlp
-
-      - name: Start Dual Streaming (Quran & Sport)
-        run: |
-          # القناة الأولى: قناة القرآن الكريم
-          URL1="https://live.kwikmotion.com/sharjahtvquranlive/shqurantv.smil/playlist.m3u8"
-          KEY1="FB-122122202925122511-1-Ab4BBA1VKoBfPmKG64-XaZ2N"
-          RTMP1="rtmps://live-api-s.facebook.com:443/rtmp/$KEY1"
-
-          # القناة الثانية: Alwan Sport
-          URL2="http://135.125.109.73:9000/Alwan%20Sport%201%20FHD%20VIP%20Arb_.m3u8"
-          KEY2="FB-122122202925122511-0-Ab7cNMscTReXBvyXRkecQZ5t"
-          RTMP2="rtmps://live-api-s.facebook.com:443/rtmp/$KEY2"
-
-          # تشغيل البث الأول في الخلفية (&) مع شعار BALLONTV
-          ffmpeg -re -i "$URL1" \
+          ffmpeg -re -i "https://live.kwikmotion.com/sharjahtvquranlive/shqurantv.smil/playlist.m3u8" \
           -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
           -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "$RTMP1" &
+          -f flv "rtmps://live-api-s.facebook.com:443/rtmp/FB-122122202925122511-1-Ab4BBA1VKoBfPmKG64-XaZ2N"
 
-          # تشغيل البث الثاني في الخلفية (&) مع شعار BALLONTV
-          ffmpeg -re -i "$URL2" \
+  # المهمة الثانية: بث قناة Alwan Sport
+  Sport-Stream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: sudo apt update && sudo apt install -y ffmpeg
+
+      - name: Live Sport
+        run: |
+          # إضافة User-Agent لأن روابط الـ IPTV غالباً ما تحجب السيرفرات
+          ffmpeg -user_agent "Mozilla/5.0" -re -i "http://135.125.109.73:9000/Alwan%20Sport%201%20FHD%20VIP%20Arb_.m3u8" \
           -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
+          -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3500k -bufsize 7000k \
           -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "$RTMP2" &
-
-          # الانتظار حتى لا تنتهي المهمة
-          wait
+          -f flv "rtmps://live-api-s.facebook.com:443/rtmp/FB-122122202925122511-0-Ab7cNMscTReXBvyXRkecQZ5t"
