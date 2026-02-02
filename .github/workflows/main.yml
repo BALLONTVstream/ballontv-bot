@@ -1,34 +1,61 @@
-name: BALLONTV_ADVANCED_ENGINE
+name: BALLONTV_ULTIMATE_HUB
 on:
   workflow_dispatch:
     inputs:
       source_url: { required: true }
-      server_url: { required: true }
-      stream_key: { required: true }
+      logo_url: { required: false }
+      fb_key: { required: false }
+      yt_key: { required: false }
+      kik_key: { required: false }
+      twitch_key: { required: false }
+      custom_rtmp: { required: false }
 
 jobs:
-  streaming:
+  multi_stream:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Tools
+      - name: Install PRO Tools
         run: |
           sudo apt update && sudo apt install -y ffmpeg
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: Execution
+      - name: Global Broadcasting
         run: |
-          # دالة البث مع إعادة التشغيل التلقائي
-          run_stream() {
+          # 1. جلب رابط المصدر المباشر
+          SRC=$(yt-dlp -g -f "best" "${{ github.event.inputs.source_url }}" || echo "${{ github.event.inputs.source_url }}")
+          
+          # 2. إعداد الوجهات (تعدد المنصات)
+          DESTS=""
+          # فيسبوك
+          if [ "${{ github.event.inputs.fb_key }}" != "" ]; then DESTS="$DESTS|[f=flv]rtmps://live-api-s.facebook.com:443/rtmp/${{ github.event.inputs.fb_key }}"; fi
+          # يوتيوب
+          if [ "${{ github.event.inputs.yt_key }}" != "" ]; then DESTS="$DESTS|[f=flv]rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.yt_key }}"; fi
+          # كيك
+          if [ "${{ github.event.inputs.kik_key }}" != "" ]; then DESTS="$DESTS|[f=flv]rtmps://fa72391ed05b.global-contribute.live-video.net:443/app/${{ github.event.inputs.kik_key }}"; fi
+          # تويتش
+          if [ "${{ github.event.inputs.twitch_key }}" != "" ]; then DESTS="$DESTS|[f=flv]rtmp://live.twitch.tv/app/${{ github.event.inputs.twitch_key }}"; fi
+          # رابط خارجي مخصص
+          if [ "${{ github.event.inputs.custom_rtmp }}" != "" ]; then DESTS="$DESTS|[f=flv]${{ github.event.inputs.custom_rtmp }}"; fi
+          
+          FINAL_DESTS=$(echo $DESTS | sed 's/^|//')
+
+          # 3. معالجة الشعار (BALLONTV)
+          if [ "${{ github.event.inputs.logo_url }}" != "" ]; then
+            FILTER="-i ${{ github.event.inputs.logo_url }} -filter_complex \"[1:v]scale=150:-1[l];[0:v][l]overlay=w-tw-20:20\""
+          else
+            FILTER="-vf \"drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4\""
+          fi
+
+          # 4. الانطلاق بالبث العالمي (Auto-Restart 15s)
+          run_all() {
             ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
-            -re -i "${{ github.event.inputs.source_url }}" \
-            -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=35:fontcolor=white:box=1:boxcolor=black@0.4" \
-            -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
-            -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv \
-            "${{ github.event.inputs.server_url }}${{ github.event.inputs.stream_key }}"
+            -re -stream_loop -1 -i "$SRC" $FILTER \
+            -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3500k -bufsize 7000k \
+            -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f tee -map 0:v -map 0:a "$FINAL_DESTS"
           }
 
-          until run_stream; do
-            echo "إعادة المحاولة بعد 15 ثانية..."
+          until run_all; do
+            echo "⚠️ انقطع المصدر! إعادة المحاولة بعد 15 ثانية..."
             sleep 15
           done
