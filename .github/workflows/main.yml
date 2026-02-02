@@ -1,15 +1,13 @@
-name: BALLONTV_ENGINE
+name: BALLONTV_ADVANCED_ENGINE
 on:
   workflow_dispatch:
     inputs:
-      video_url: { required: true }
-      fb_keys: { required: true } # مفاتيح فيسبوك مفصولة بفاصلة
-      logo_url: { required: false }
-      logo_size: { default: "150" }
-      logo_pos: { default: "w-tw-20:20" }
+      source_url: { required: true }
+      server_url: { required: true }
+      stream_key: { required: true }
 
 jobs:
-  stream:
+  streaming:
     runs-on: ubuntu-latest
     steps:
       - name: Install Tools
@@ -18,28 +16,19 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: Start Streaming
+      - name: Execution
         run: |
-          # جلب الرابط المباشر
-          SRC=$(yt-dlp -g -f "best" "${{ github.event.inputs.video_url }}" || echo "${{ github.event.inputs.video_url }}")
-          
-          # إعداد الشعار
-          if [ "${{ github.event.inputs.logo_url }}" != "" ]; then
-            FILTER="-i ${{ github.event.inputs.logo_url }} -filter_complex \"[1:v]scale=${{ github.event.inputs.logo_size }}:-1[l];[0:v][l]overlay=${{ github.event.inputs.logo_pos }}\""
-          else
-            FILTER="-vf \"drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4\""
-          fi
+          # دالة البث مع إعادة التشغيل التلقائي
+          run_stream() {
+            ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 \
+            -re -i "${{ github.event.inputs.source_url }}" \
+            -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=35:fontcolor=white:box=1:boxcolor=black@0.4" \
+            -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
+            -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv \
+            "${{ github.event.inputs.server_url }}${{ github.event.inputs.stream_key }}"
+          }
 
-          # إعداد تعدد الوجهات
-          IFS=',' read -ra ADDR <<< "${{ github.event.inputs.fb_keys }}"
-          DESTS=""
-          for k in "${ADDR[@]}"; do
-            DESTS="$DESTS|[f=flv]rtmps://live-api-s.facebook.com:443/rtmp/$(echo $k | tr -d ' ')"
+          until run_stream; do
+            echo "إعادة المحاولة بعد 15 ثانية..."
+            sleep 15
           done
-          FINAL_DESTS=$(echo $DESTS | sed 's/^|//')
-
-          # إطلاق البث
-          ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 \
-          -re -stream_loop -1 -i "$SRC" $FILTER \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
-          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f tee -map 0:v -map 0:a "$FINAL_DESTS"
