@@ -1,20 +1,20 @@
-name: Multi-Platform Live Bot
+name: BALLONTV_PRO_ENGINE
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'رابط الفيديو'
+        description: 'رابط المصدر (YouTube/m3u8/mpd)'
         required: true
       yt_key:
-        description: 'YouTube Key'
-        required: false
+        description: 'YouTube Stream Key'
+        default: 'none'
       fb_key:
-        description: 'Facebook Key'
-        required: false
+        description: 'Facebook Full RTMP URL'
+        default: 'none'
       kik_key:
-        description: 'Kik Key'
-        required: false
+        description: 'Kik Stream Key'
+        default: 'none'
 
 jobs:
   stream:
@@ -26,21 +26,36 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
-      - name: Start Multi-Streaming
+      - name: Start Professional Streaming
         run: |
-          # استلام الروابط من التطبيق
-          VIDEO_URL="${{ github.event.inputs.video_url }}"
+          # 1. جلب رابط الفيديو المباشر وتخطي حماية المواقع
+          VIDEO_SOURCE=$(yt-dlp -g -f "best" "${{ github.event.inputs.video_url }}" || echo "${{ github.event.inputs.video_url }}")
           
-          # إعداد روابط المنصات
-          YT="rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.yt_key }}"
-          FB="${{ github.event.inputs.fb_key }}"
-          KIK="rtmps://fa72391ed05b.global-contribute.live-video.net:443/app/${{ github.event.inputs.kik_key }}"
+          # 2. بناء روابط المنصات (تجهيز البث المتعدد)
+          DESTS=""
+          
+          # إعداد يوتيوب
+          if [ "${{ github.event.inputs.yt_key }}" != "none" ] && [ "${{ github.event.inputs.yt_key }}" != "" ]; then
+            DESTS="$DESTS|[f=flv]rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.yt_key }}"
+          fi
+          
+          # إعداد فيسبوك (الرابط الكامل يرسل من التطبيق)
+          if [ "${{ github.event.inputs.fb_key }}" != "none" ] && [ "${{ github.event.inputs.fb_key }}" != "" ]; then
+            DESTS="$DESTS|[f=flv]${{ github.event.inputs.fb_key }}"
+          fi
+          
+          # إعداد كيك
+          if [ "${{ github.event.inputs.kik_key }}" != "none" ] && [ "${{ github.event.inputs.kik_key }}" != "" ]; then
+            DESTS="$DESTS|[f=flv]rtmps://fa72391ed05b.global-contribute.live-video.net:443/app/${{ github.event.inputs.kik_key }}"
+          fi
 
-          # جلب رابط الفيديو المباشر وبدء البث المتعدد
-          VIDEO_PATH=$(yt-dlp -g -f "best[ext=mp4]" "$VIDEO_URL")
-          
-          ffmpeg -re -stream_loop -1 -i "$VIDEO_PATH" \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
-          -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 \
-          -f tee -map 0:v -map 0:a \
-          "[$f=flv]$YT|[$f=flv]$FB|[$f=flv]$KIK"
+          # إزالة أول علامة | لتهيئة الرابط النهائي
+          FINAL_DESTS=$(echo $DESTS | sed 's/^|//')
+
+          # 3. إطلاق محرك BALLONTV (مع إضافة الشعار والـ Keyframes المناسبة لفيسبوك ويوتيوب)
+          ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 \
+          -re -stream_loop -1 -i "$VIDEO_SOURCE" \
+          -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
+          -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3500k -bufsize 7000k \
+          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
+          -f tee -map 0:v -map 0:a "$FINAL_DESTS"
