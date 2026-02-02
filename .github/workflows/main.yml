@@ -1,0 +1,39 @@
+name: BALLONTV Streamer
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        required: true
+      yt_key:
+        required: false
+      fb_rtmp:
+        required: false
+      kik_key:
+        required: false
+
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Software
+        run: |
+          sudo apt update && sudo apt install -y ffmpeg
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: Run BALLONTV Engine
+        run: |
+          V_URL=$(yt-dlp -g -f "best[ext=mp4]" "${{ github.event.inputs.video_url }}")
+          
+          # تجهيز المنصات
+          OUT=""
+          if [ "${{ github.event.inputs.yt_key }}" != "" ]; then OUT="$OUT|[f=flv]rtmp://a.rtmp.youtube.com/live2/${{ github.event.inputs.yt_key }}"; fi
+          if [ "${{ github.event.inputs.fb_rtmp }}" != "" ]; then OUT="$OUT|[f=flv]${{ github.event.inputs.fb_rtmp }}"; fi
+          if [ "${{ github.event.inputs.kik_key }}" != "" ]; then OUT="$OUT|[f=flv]rtmps://fa72391ed05b.global-contribute.live-video.net:443/app/${{ github.event.inputs.kik_key }}"; fi
+          
+          FINAL_OUT=$(echo $OUT | sed 's/^|//')
+
+          ffmpeg -re -stream_loop -1 -i "$V_URL" \
+          -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
+          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
+          -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -f tee -map 0:v -map 0:a "$FINAL_OUT"
