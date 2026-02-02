@@ -1,37 +1,100 @@
-name: BALLONTV_FINAL_VERSION
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 15px; text-align: center; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #333; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .platform-label { display: block; text-align: right; font-weight: bold; margin-top: 10px; color: #555; }
+        button { background: #007bff; color: white; border: none; padding: 15px; width: 100%; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+        button:hover { background: #0056b3; }
+        #status { margin-top: 20px; font-size: 14px; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
 
-on:
-  workflow_dispatch: # تشغيل يدوي من Actions
+<div class="card">
+    <h2>لوحة البث المتعدد 🚀</h2>
+    
+    <span class="platform-label">رابط الفيديو (YouTube/Link):</span>
+    <input type="text" id="videoUrl" placeholder="أدخل رابط الفيديو هنا">
 
-jobs:
-  # السيرفر الأول: بث قناة القرآن الكريم
-  Quran-Server:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install FFmpeg
-        run: sudo apt update && sudo apt install -y ffmpeg
+    <hr>
 
-      - name: Start Quran Stream
-        run: |
-          ffmpeg -re -i "https://live.kwikmotion.com/sharjahtvquranlive/shqurantv.smil/playlist.m3u8" \
-          -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 3000k -bufsize 6000k \
-          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "rtmps://live-api-s.facebook.com:443/rtmp/FB-122122223739122511-1-Ab4ePstD_mf454jdzTLSJyNb"
+    <span class="platform-label">مفتاح يوتيوب (YouTube Key):</span>
+    <input type="text" id="ytKey" placeholder="2ka8-xxxx-xxxx-xxxx">
 
-  # السيرفر الثاني: بث قناة Alwan Sport
-  Sport-Server:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install FFmpeg
-        run: sudo apt update && sudo apt install -y ffmpeg
+    <span class="platform-label">رابط فيسبوك الكامل (Facebook RTMP URL):</span>
+    <input type="text" id="fbKey" placeholder="rtmps://live-api-s.facebook.com:443/rtmp/...">
 
-      - name: Start Sport Stream
-        run: |
-          # استخدمنا محاكي متصفح لضمان عدم حجب رابط الرياضة
-          ffmpeg -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-          -re -i "http://135.125.109.73:9000/Alwan%20Sport%201%20FHD%20VIP%20Arb_.m3u8" \
-          -vf "drawtext=text='BALLONTV':x=w-tw-20:y=20:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4" \
-          -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3500k -bufsize 7000k \
-          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "rtmps://live-api-s.facebook.com:443/rtmp/FB-122122223739122511-0-Ab5nPnGm7-AvjgZoRLxF_X1N"
+    <span class="platform-label">مفتاح كيك (Kik Stream Key):</span>
+    <input type="text" id="kikKey" placeholder="sk_us-west-2_xxxxxx">
+
+    <button onclick="startMultiStream()">بدء البث في كل المنصات</button>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    function startMultiStream() {
+        // --- إعدادات جيت هاب (يجب تعبئتها) ---
+        const GITHUB_TOKEN = "ضع_التوكن_الخاص_بك_هنا";
+        const USERNAME = "اسم_حسابك";
+        const REPO_NAME = "اسم_المستودع";
+        // ------------------------------------
+
+        const videoUrl = document.getElementById('videoUrl').value;
+        const ytKey = document.getElementById('ytKey').value;
+        const fbKey = document.getElementById('fbKey').value;
+        const kikKey = document.getElementById('kikKey').value;
+        const statusDiv = document.getElementById('status');
+
+        if (!videoUrl) {
+            alert("يرجى إدخال رابط الفيديو أولاً!");
+            return;
+        }
+
+        statusDiv.className = "";
+        statusDiv.innerText = "⏳ جاري تشغيل السيرفرات والبث...";
+
+        const apiUrl = `https://api.github.com/repos/${USERNAME}/${REPO_NAME}/actions/workflows/main.yml/dispatches`;
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: {
+                    video_url: videoUrl,
+                    yt_key: ytKey || "none",
+                    fb_key: fbKey || "none",
+                    kik_key: kikKey || "none"
+                }
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                statusDiv.className = "success";
+                statusDiv.innerText = "✅ تم إرسال الأمر! البث سيعمل خلال لحظات على جميع المنصات المختارة.";
+            } else {
+                statusDiv.className = "error";
+                statusDiv.innerText = "❌ خطأ في الاتصال. تأكد من التوكن وإعدادات GitHub.";
+            }
+        })
+        .catch(err => {
+            statusDiv.className = "error";
+            statusDiv.innerText = "⚠️ فشل الطلب: " + err;
+        });
+    }
+</script>
+
+</body>
+</html>
